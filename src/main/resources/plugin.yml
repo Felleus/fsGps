@@ -1,7 +1,7 @@
 name: fsGps
 version: '1.1'
 main: com.fsGps.FsGps
-api-version: '1.18'
+api-version: '1.19'
 prefix: FsGPS
 authors: [ FSD ]
 description: FSD Plugin

@@ -5,22 +5,25 @@ import com.fsGps.model.GpsPoint
 import com.fsGps.utils.LocationUtil
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.TextColor
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import net.kyori.adventure.title.Title
+import org.bukkit.Bukkit
 import org.bukkit.Location
+import org.bukkit.Material
+import org.bukkit.Sound
 import org.bukkit.entity.Player
+import org.bukkit.event.inventory.InventoryClickEvent
+import org.bukkit.inventory.ItemStack
 import org.bukkit.scheduler.BukkitRunnable
-import org.bukkit.util.Vector
 import java.lang.Math.toDegrees
+import java.time.Duration
 import kotlin.math.atan2
 import kotlin.math.sqrt
-import java.lang.Math
-import java.time.Duration
 
 class GpsManager(private val plugin: FsGps) {
 
     private val gpsPoints = mutableListOf<GpsPoint>()
     private val activeRoutes = mutableMapOf<Player, GpsPoint>()
-    private val configManager = plugin.config
     private val routeUpdateInterval = 20L
 
     fun loadConfig() {
@@ -66,6 +69,69 @@ class GpsManager(private val plugin: FsGps) {
         player.sendMessage("Точка $name удалена")
     }
 
+    fun openGpsMenu(player: Player) {
+        val inventory = Bukkit.createInventory(null, 54, Component.text("GPS Меню"))
+
+        gpsPoints.forEach { point ->
+            val item = ItemStack(Material.COMPASS)
+            val meta = item.itemMeta!!
+
+            meta.displayName(
+                Component.text(point.name)
+                    .color(TextColor.color(255, 255, 255))
+                    .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false)
+            )
+
+            meta.lore(
+                listOf(
+                    Component.empty(),
+                    Component.text("Категория: ")
+                        .color(TextColor.color(255, 255, 0))
+                        .append(Component.text(point.category)
+                            .color(TextColor.color(255, 255, 255))
+                            .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false)),
+                    Component.text("Координаты: ")
+                        .color(TextColor.color(255, 255, 0))
+                        .append(Component.text("X=${point.x}, Z=${point.z}")
+                            .color(TextColor.color(255, 255, 255))
+                            .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false))
+                )
+            )
+
+
+            item.itemMeta = meta
+            inventory.addItem(item)
+        }
+
+        player.openInventory(inventory)
+    }
+
+
+    fun handleMenuClick(event: InventoryClickEvent) {
+        val player = event.whoClicked as? Player ?: return
+        val item = event.currentItem ?: return
+
+        // Проверяем название инвентаря через Adventure API
+        if (event.view.title() != Component.text("GPS Меню")) return
+
+        event.isCancelled = true
+
+        // Получаем Component и преобразуем в строку
+        val meta = item.itemMeta
+        val pointNameComponent = meta?.displayName() ?: return
+        val pointName = PlainTextComponentSerializer.plainText().serialize(pointNameComponent)
+
+        val point = gpsPoints.find { it.name == pointName }
+
+        if (point != null) {
+            startNavigation(player, point.name)
+            player.closeInventory()
+            player.sendMessage("Навигация к точке ${point.name} началась!")
+        } else {
+            player.sendMessage("Ошибка: Точка $pointName не найдена.")
+        }
+    }
+
     fun showNearestGpsPoint(player: Player, category: String) {
         val nearestPoint = gpsPoints.filter { it.category == category }
             .minByOrNull { point -> LocationUtil.getDistance(player.location, point.x, point.z) }
@@ -74,27 +140,27 @@ class GpsManager(private val plugin: FsGps) {
             player.sendMessage("Ближайшая точка из категории $category: ${nearestPoint.name}")
             startNavigation(player, nearestPoint.name)
         } else {
+            player.playSound(player.location, Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f)
             player.sendMessage("Точек в категории $category не найдено.")
         }
-    }
-
-    fun openGpsMenu(player: Player) {
-        player.sendMessage("Меню GPS: ${gpsPoints.size} точек доступно.")
     }
 
     fun startNavigation(player: Player, name: String) {
         val destination = gpsPoints.find { it.name == name }
         if (destination != null) {
             activeRoutes[player] = destination
+            player.playSound(player.location, Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f)
             player.sendMessage("Навигация на точку $name началась!")
             startRouteUpdater()
         } else {
+            player.playSound(player.location, Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f)
             player.sendMessage("Точка $name не найдена.")
         }
     }
 
     fun stopNavigation(player: Player) {
         activeRoutes.remove(player)
+        player.playSound(player.location, Sound.BLOCK_NOTE_BLOCK_BASS, 1.0f, 1.0f)
         player.sendMessage("Навигация остановлена.")
     }
 
@@ -116,14 +182,11 @@ class GpsManager(private val plugin: FsGps) {
         val distanceZ = location.z - destination.z
         val distance = sqrt(distanceX * distanceX + distanceZ * distanceZ)
 
-        val title = Component.text("Навигация").color(TextColor.color(255, 0, 0))
-
-        val routeTitle: Component = if (distance <= 7) {
+        if (distance <= 7) {
             activeRoutes.remove(player)
+            player.playSound(player.location, Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f)
             player.sendMessage(Component.text("Вы успешно достигли точки ${destination.name}!")
                 .color(TextColor.color(0, 255, 0)))
-
-            Component.text("Вы достигли места назначения").color(TextColor.color(0, 255, 0))
         } else {
             val loc = player.location
             val destinationLoc = Location(player.world, destination.x, loc.y, destination.z)
@@ -149,27 +212,11 @@ class GpsManager(private val plugin: FsGps) {
                 else -> "⬇"
             }
 
-            val directionColor = when (angle) {
-                in -22.5..22.5 -> TextColor.color(0, 255, 0)
-                in 22.5..67.5 -> TextColor.color(255, 255, 0)
-                in 67.5..112.5 -> TextColor.color(255, 165, 0)
-                in 112.5..157.5 -> TextColor.color(255, 69, 0)
-                in 157.5..202.5 -> TextColor.color(255, 0, 0)
-                in -157.5..-112.5 -> TextColor.color(255, 69, 0)
-                in -112.5..-67.5 -> TextColor.color(255, 165, 0)
-                in -67.5..-22.5 -> TextColor.color(255, 255, 0)
-                else -> TextColor.color(255, 0, 0)
-            }
-
             player.showTitle(Title.title(
+                Component.text(" $directionSymbol"),
                 Component.text("До ${destination.name} осталось ${distance.toInt()} м."),
-                Component.text("Направление: $directionSymbol").color(directionColor),
                 Title.Times.times(Duration.ofSeconds(0), Duration.ofSeconds(2), Duration.ofSeconds(0))
             ))
-
-            Component.text("До ${destination.name} осталось ${distance.toInt()} м.")
-                .color(TextColor.color(255, 255, 255))
-                .append(Component.text(directionSymbol).color(directionColor))
         }
     }
 

@@ -16,6 +16,11 @@ class GpsCommand(private val gpsManager: GpsManager) : BaseCommand() {
         player.sendMessage("Точка $name создана в категории $category")
     }
 
+    @Subcommand("menu")
+    fun onMenu(player: Player) {
+        gpsManager.openGpsMenu(player)
+    }
+
     @Subcommand("delete")
     fun onDelete(player: Player, name: String) {
         gpsManager.deleteGpsPoint(player, name)
