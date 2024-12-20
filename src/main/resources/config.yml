@@ -1,0 +1,5 @@
+gps_points:
+  "default":
+    category: "default"
+    x: 100.0
+    z: 100.0

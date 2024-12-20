@@ -1,0 +1,8 @@
+name: fsGps
+version: '1.1'
+main: com.fsGps.FsGps
+api-version: '1.18'
+prefix: FsGPS
+authors: [ FSD ]
+description: FSD Plugin
+website: felleusdev.com
