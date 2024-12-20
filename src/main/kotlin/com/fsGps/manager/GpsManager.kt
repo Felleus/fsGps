@@ -72,6 +72,7 @@ class GpsManager(private val plugin: FsGps) {
 
         if (nearestPoint != null) {
             player.sendMessage("Ближайшая точка из категории $category: ${nearestPoint.name}")
+            startNavigation(player, nearestPoint.name)
         } else {
             player.sendMessage("Точек в категории $category не найдено.")
         }
@@ -136,16 +137,16 @@ class GpsManager(private val plugin: FsGps) {
             val det = lookDirection.x * toTarget.z - lookDirection.z * toTarget.x
             val angle = toDegrees(atan2(det, dot))
 
-            val direction = when (angle) {
-                in -22.5..22.5 -> Component.text("⬆")
-                in 22.5..67.5 -> Component.text("⬈")
-                in 67.5..112.5 -> Component.text("➡")
-                in 112.5..157.5 -> Component.text("⬊")
-                in 157.5..202.5, in -180.0..-157.5 -> Component.text("⬇")
-                in -157.5..-112.5 -> Component.text("⬋")
-                in -112.5..-67.5 -> Component.text("⬅")
-                in -67.5..-22.5 -> Component.text("⬉")
-                else -> Component.text("⬇")
+            val directionSymbol = when (angle) {
+                in -22.5..22.5 -> "⬆"
+                in 22.5..67.5 -> "⬈"
+                in 67.5..112.5 -> "➡"
+                in 112.5..157.5 -> "⬊"
+                in 157.5..202.5, in -180.0..-157.5 -> "⬇"
+                in -157.5..-112.5 -> "⬋"
+                in -112.5..-67.5 -> "⬅"
+                in -67.5..-22.5 -> "⬉"
+                else -> "⬇"
             }
 
             val directionColor = when (angle) {
@@ -161,14 +162,14 @@ class GpsManager(private val plugin: FsGps) {
             }
 
             player.showTitle(Title.title(
-                Component.text("До ${destination.name} осталось ${distance.toInt()} м."), Component.text("Направление: $direction"),
+                Component.text("До ${destination.name} осталось ${distance.toInt()} м."),
+                Component.text("Направление: $directionSymbol").color(directionColor),
                 Title.Times.times(Duration.ofSeconds(0), Duration.ofSeconds(2), Duration.ofSeconds(0))
-            ));
-
+            ))
 
             Component.text("До ${destination.name} осталось ${distance.toInt()} м.")
                 .color(TextColor.color(255, 255, 255))
-                .append(direction)
+                .append(Component.text(directionSymbol).color(directionColor))
         }
     }
 
